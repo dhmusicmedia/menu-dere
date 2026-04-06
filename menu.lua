@@ -1,107 +1,46 @@
-local Player = game.Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local RunService = game:GetService("RunService")
+local P = game.Players.LocalPlayer
+local R = game:GetService("RunService")
+_G.G, _G.S, _G.O = false, false, false
 
--- 1. XOÁ MENU CŨ
-if Player.PlayerGui:FindFirstChild("DerelictBypass") then
-    Player.PlayerGui.DerelictBypass:Destroy()
-end
+local sg = Instance.new("ScreenGui", P.PlayerGui)
+sg.Name = "DerelictFix"
+local f = Instance.new("Frame", sg)
+f.Size, f.Position, f.Active, f.Draggable = UDim2.new(0,200,0,150), UDim2.new(0,50,0,50), true, true
 
--- 2. TẠO GIAO DIỆN
-local sg = Instance.new("ScreenGui", Player.PlayerGui)
-sg.Name = "DerelictBypass"
-sg.ResetOnSpawn = false
-
-local frame = Instance.new("Frame", sg)
-frame.Size = UDim2.new(0, 220, 0, 170)
-frame.Position = UDim2.new(0.05, 0, 0.3, 0)
-frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-frame.Active = true
-frame.Draggable = true
-Instance.new("UICorner", frame)
-
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0, 35)
-title.Text = "DERELICT BYPASS V2"
-title.TextColor3 = Color3.fromRGB(255, 0, 0)
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
-
-_G.GodMode = false
-_G.OneHit = false
-_G.InfStamina = false
-
-local function createToggle(name, pos, varName, onColor)
-    local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.new(1, -20, 0, 35)
-    btn.Position = pos
-    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    btn.Text = name .. ": OFF"
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = Enum.Font.Gotham
-    Instance.new("UICorner", btn)
-
-    btn.MouseButton1Click:Connect(function()
-        _G[varName] = not _G[varName]
-        btn.Text = name .. ": " .. (_G[varName] and "ON" or "OFF")
-        btn.BackgroundColor3 = _G[varName] and onColor or Color3.fromRGB(45, 45, 45)
+local function t(n, p, v)
+    local b = Instance.new("TextButton", f)
+    b.Size, b.Position, b.Text = UDim2.new(1,0,0,40), p, n..": OFF"
+    b.MouseButton1Click:Connect(function()
+        _G[v] = not _G[v]
+        b.Text = n..": "..(_G[v] and "ON" or "OFF")
+        b.BackgroundColor3 = _G[v] and Color3.new(0,1,0) or Color3.new(1,1,1)
     end)
 end
+t("BAT TU", UDim2.new(0,0,0,0), "G")
+t("STAMINA", UDim2.new(0,0,0,50), "S")
+t("ONE HIT", UDim2.new(0,0,0,100), "O")
 
-createToggle("BẤT TỬ (BYPASS)", UDim2.new(0, 10, 0, 40), "GodMode", Color3.fromRGB(0, 120, 255))
-createToggle("VÔ HẠN STAMINA", UDim2.new(0, 10, 0, 80), "InfStamina", Color3.fromRGB(255, 150, 0))
-createToggle("ONE HIT (INSTANT)", UDim2.new(0, 10, 0, 120), "OneHit", Color3.fromRGB(255, 0, 0))
-
--- 3. HỆ THỐNG BYPASS SÁT THƯƠNG
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
-
-mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-
-    -- Chặn lệnh trừ máu từ quái vật (God Mode)
-    if _G.GodMode and method == "FireServer" and tostring(self) == "DamageEvent" then
-        if args[1] == Player.Character then return nil end
-    end
-    
-    return oldNamecall(self, ...)
-end)
-setreadonly(mt, true)
-
--- 4. VÒNG LẶP HỖ TRỢ
-RunService.Heartbeat:Connect(function()
-    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        if _G.GodMode then Player.Character.Humanoid.Health = 100 end
-        if _G.InfStamina then
-            -- Thử tìm mọi biến liên quan đến thể lực
-            for _, v in pairs(Player.Character:GetDescendants()) do
-                if v.Name:find("Stamina") or v.Name:find("Energy") then v.Value = 100 end
-            end
+R.Heartbeat:Connect(function()
+    local c = P.Character
+    if c and c:FindFirstChild("Humanoid") then
+        if _G.G then c.Humanoid.Health = c.Humanoid.MaxHealth end
+        if _G.S then
+            local st = c:FindFirstChild("Stamina") or c:FindFirstChild("Energy")
+            if st then st.Value = 100 end
         end
     end
 end)
 
--- 5. ONE HIT QUA TOUCHED
-function dealOneHit(hit)
-    if _G.OneHit and hit.Parent and hit.Parent:FindFirstChild("Humanoid") then
-        if hit.Parent.Name ~= Player.Name then
-            hit.Parent.Humanoid.Health = -999999
-        end
+local function dmg(h)
+    if _G.O and h.Parent and h.Parent:FindFirstChild("Humanoid") and h.Parent.Name ~= P.Name then
+        h.Parent.Humanoid.Health = 0
     end
 end
 
-function apply(char)
-    char.ChildAdded:Connect(function(item)
-        if item:IsA("Tool") then
-            for _, v in pairs(item:GetDescendants()) do
-                if v:IsA("BasePart") then v.Touched:Connect(dealOneHit) end
-            end
-        end
-    end)
+P.CharacterAdded:Connect(function(c)
+    c.DescendantAdded:Connect(dmg)
+end)
+if P.Character then 
+    for _, v in pairs(P.Character:GetDescendants()) do if v:IsA("BasePart") then v.Touched:Connect(dmg) end end 
 end
-
-Player.CharacterAdded:Connect(apply)
-if Player.Character then apply(Player.Character) end
-print("BYPASS LOADED!")
+print("DONE")
