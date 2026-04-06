@@ -1,14 +1,15 @@
 local Player = game.Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
 local RunService = game:GetService("RunService")
 
--- Xóa Menu cũ
-if Player.PlayerGui:FindFirstChild("DerelictUltimate") then
-    Player.PlayerGui.DerelictUltimate:Destroy()
+-- 1. XOÁ MENU CŨ
+if Player.PlayerGui:FindFirstChild("DerelictBypass") then
+    Player.PlayerGui.DerelictBypass:Destroy()
 end
 
--- TẠO GIAO DIỆN
+-- 2. TẠO GIAO DIỆN
 local sg = Instance.new("ScreenGui", Player.PlayerGui)
-sg.Name = "DerelictUltimate"
+sg.Name = "DerelictBypass"
 sg.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", sg)
@@ -21,11 +22,10 @@ Instance.new("UICorner", frame)
 
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1, 0, 0, 35)
-title.Text = "DERELICT HUB PRO"
-title.TextColor3 = Color3.fromRGB(0, 255, 255)
+title.Text = "DERELICT BYPASS V2"
+title.TextColor3 = Color3.fromRGB(255, 0, 0)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.TextSize = 16
 
 _G.GodMode = false
 _G.OneHit = false
@@ -48,51 +48,60 @@ local function createToggle(name, pos, varName, onColor)
     end)
 end
 
-createToggle("BẤT TỬ", UDim2.new(0, 10, 0, 40), "GodMode", Color3.fromRGB(0, 120, 255))
+createToggle("BẤT TỬ (BYPASS)", UDim2.new(0, 10, 0, 40), "GodMode", Color3.fromRGB(0, 120, 255))
 createToggle("VÔ HẠN STAMINA", UDim2.new(0, 10, 0, 80), "InfStamina", Color3.fromRGB(255, 150, 0))
-createToggle("ONE HIT DAME", UDim2.new(0, 10, 0, 120), "OneHit", Color3.fromRGB(200, 0, 0))
+createToggle("ONE HIT (INSTANT)", UDim2.new(0, 10, 0, 120), "OneHit", Color3.fromRGB(255, 0, 0))
 
--- VÒNG LẶP XỬ LÝ (Dùng Heartbeat để chạy nhanh nhất)
+-- 3. HỆ THỐNG BYPASS SÁT THƯƠNG
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    -- Chặn lệnh trừ máu từ quái vật (God Mode)
+    if _G.GodMode and method == "FireServer" and tostring(self) == "DamageEvent" then
+        if args[1] == Player.Character then return nil end
+    end
+    
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
+
+-- 4. VÒNG LẶP HỖ TRỢ
 RunService.Heartbeat:Connect(function()
     if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        local hum = Player.Character.Humanoid
-        
-        -- Bất tử: Ép máu luôn đầy
-        if _G.GodMode then
-            hum.Health = hum.MaxHealth
-        end
-        
-        -- Vô hạn Năng lượng
+        if _G.GodMode then Player.Character.Humanoid.Health = 100 end
         if _G.InfStamina then
-            local s = Player.Character:FindFirstChild("Stamina") or Player.Character:FindFirstChild("Energy")
-            if s and s:IsA("NumberValue") then s.Value = s.MaxValue or 100 end
+            -- Thử tìm mọi biến liên quan đến thể lực
+            for _, v in pairs(Player.Character:GetDescendants()) do
+                if v.Name:find("Stamina") or v.Name:find("Energy") then v.Value = 100 end
+            end
         end
     end
 end)
 
--- ONE HIT DAME (Gây sát thương cực lớn thay vì để bằng 0)
-local function dealDamage(hit)
+-- 5. ONE HIT QUA TOUCHED
+function dealOneHit(hit)
     if _G.OneHit and hit.Parent and hit.Parent:FindFirstChild("Humanoid") then
-        local target = hit.Parent.Humanoid
         if hit.Parent.Name ~= Player.Name then
-            -- Gây 999 triệu sát thương để vượt qua bảo vệ của Boss
-            target:TakeDamage(999999999) 
-            if target.Health > 0 then target.Health = 0 end
+            hit.Parent.Humanoid.Health = -999999
         end
     end
 end
 
-local function apply(char)
-    for _, v in pairs(char:GetDescendants()) do
-        if v:IsA("BasePart") then v.Touched:Connect(dealDamage) end
-    end
-    char.ChildAdded:Connect(function(new)
-        for _, v in pairs(new:GetDescendants()) do
-            if v:IsA("BasePart") then v.Touched:Connect(dealDamage) end
+function apply(char)
+    char.ChildAdded:Connect(function(item)
+        if item:IsA("Tool") then
+            for _, v in pairs(item:GetDescendants()) do
+                if v:IsA("BasePart") then v.Touched:Connect(dealOneHit) end
+            end
         end
     end)
 end
 
 Player.CharacterAdded:Connect(apply)
 if Player.Character then apply(Player.Character) end
-print("DERELICT SCRIPT LOADED!")
+print("BYPASS LOADED!")
